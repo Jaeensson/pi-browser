@@ -2,7 +2,7 @@ import { chrom } from './helpers/test-browser';
 import { describe, expect, it } from 'vitest';
 import type { Page } from 'playwright';
 import { expect as pwExpect } from 'playwright/test';
-import { RefStore, captureAccessibility, parseAriaSnapshot } from '../src/snapshot';
+import { RefStore, captureAccessibility, parseAriaSnapshot, type AXNode } from '../src/snapshot';
 import { FIXTURE_HTML, installFixture, FIXTURE_URL } from './helpers/fixture';
 
 describe('RefStore', () => {
@@ -45,12 +45,47 @@ describe('RefStore', () => {
     expect(store.get('e2')).toBeUndefined(); // literal lines consumed no refs
   });
 
+  it('render() prints colon-value leaves and unnamed elements verbatim, ref-free (ref fidelity)', async () => {
+    const store = new RefStore();
+    const yaml = await store.render({
+      ariaSnapshot: async () => '- list:\n  - listitem: alpha\n  - listitem: beta\n- paragraph: paragraph text\n- button "Save"\n- button',
+    } as any);
+    // the leaf VALUES stay model-readable and nothing but the named button gets a ref
+    expect(yaml).toBe('- list:\n  - listitem: alpha\n  - listitem: beta\n- paragraph: paragraph text\n- button "Save" [ref=e1]\n- button');
+    for (const l of yaml.split('\n')) {
+      if (/listitem:|paragraph:|^\s*- button$/.test(l)) expect(l).not.toContain('[ref=');
+    }
+    expect(store.get('e2')).toBeUndefined(); // literal lines consumed no refs
+  });
+
+  it('scoped snapshots resolve inside their scope, not a same-named sibling (scoped fidelity)', async () => {
+    const { context, close } = await chrom.launchTestContext();
+    const page: Page = await context.newPage();
+    // two identical subtrees with same-named elements: document-wide resolution
+    // would hit #list1's button (occurrence 0 document-wide) instead of #list2's
+    await page.setContent('<ul id="list1"><li><button>Dup</button></li></ul><ul id="list2"><li><button>Dup</button></li></ul>');
+    const store = new RefStore();
+    const yaml = await store.render(page, '#list2');
+    const ref = yaml.match(/button "Dup" \[ref=(e\d+)\]/)![1];
+    const loc = await store.resolve(page, ref);
+    await pwExpect(loc).toHaveText('Dup');
+    // decisive: the resolved element lives INSIDE #list2, not its #list1 twin
+    expect(await loc.evaluate(el => (el.closest('ul') as HTMLElement).id)).toBe('list2');
+    // counterfactual (the pre-fix behavior): the same role/name/occurrence resolved
+    // document-wide lands on the #list1 twin — proving the scope actually mattered
+    const docWide = page.getByRole('button', { name: 'Dup', exact: true }).nth(0);
+    expect(await docWide.evaluate(el => (el.closest('ul') as HTMLElement).id)).toBe('list1');
+    await close();
+  });
+
   it('resolve() throws StaleRefError with fresh snapshot for unknown refs', async () => {
     const { context, close } = await chrom.launchTestContext();
     const page = await context.newPage();
     await installFixture(context);
     await page.goto(FIXTURE_URL);
     const store = new RefStore();
+    // no render yet → nothing to attach; the message must not promise a snapshot "below"
+    await expect(store.resolve(page, 'e1')).rejects.toThrow(/re-call browser_snapshot to get fresh refs/);
     await store.render(page);
     try {
       await store.resolve(page, 'e999');
@@ -118,6 +153,31 @@ describe('parseAriaSnapshot (pure, no browser)', () => {
     const roots = parseAriaSnapshot('- generic "Status":\n  - text: saved!');
     expect(roots).toHaveLength(1);
     expect(roots[0]).toEqual({ role: 'generic', name: 'Status', children: [{ role: 'text', noRef: true, line: 'text: saved!' }] });
+  });
+
+  it('emits ref-free literal nodes for colon-value leaves and unnamed elements (ref fidelity)', () => {
+    // ariaSnapshot serializes text-bearing leaves as `- role: value` and nameless
+    // elements bare. Neither may consume a ref or drop its text.
+    const roots = parseAriaSnapshot('- list:\n  - listitem: alpha\n  - listitem: beta\n- paragraph: paragraph text\n- button "Save"\n- button');
+    expect(roots[0]).toEqual({
+      role: 'list', noRef: true, line: 'list:',
+      children: [
+        { role: 'listitem', noRef: true, line: 'listitem: alpha' },
+        { role: 'listitem', noRef: true, line: 'listitem: beta' },
+      ],
+    });
+    expect(roots[1]).toEqual({ role: 'paragraph', noRef: true, line: 'paragraph: paragraph text' });
+    expect(roots[2]).toEqual({ role: 'button', name: 'Save' }); // named → ref-able
+    expect(roots[3]).toEqual({ role: 'button', noRef: true, line: 'button' }); // unnamed → no ref
+    const store = new RefStore();
+    const refs: (string | null)[] = [];
+    const walk = (n: AXNode) => {
+      refs.push(n.noRef ? null : store.assign(n.role, n.name ?? ''));
+      for (const c of n.children ?? []) walk(c);
+    };
+    roots.forEach(walk);
+    // only the named "Save" button consumed a ref
+    expect(refs).toEqual([null, null, null, null, 'e1', null]);
   });
 
   it('keeps multi-root snapshots unwrapped (no fragment wrapper node)', () => {

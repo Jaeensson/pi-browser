@@ -3,11 +3,14 @@ import type { BrowserContext } from 'playwright';
 export const FIXTURE_URL = 'https://fixture.test/';
 export const FIXTURE_HTML = `<!doctype html><html><head><title>Fixture App</title></head><body>
 <h1>Fixture App</h1>
-<input aria-label="Email" placeholder="you@example.com" />
+<ul id="list"><li>alpha</li><li>beta</li></ul>
+<p>paragraph text</p>
 <button id="save">Save</button>
+<button></button>
 <button id="alert-btn">Alert</button>
 <button id="fetch-btn">Fetch</button>
 <select aria-label="Color"><option>red</option><option>green</option></select>
+<input aria-label="Email" placeholder="you@example.com" />
 <ul id="items"></ul>
 <div id="status" hidden>saved!</div>
 <div id="late" hidden>appeared!</div>

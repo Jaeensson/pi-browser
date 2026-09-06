@@ -6,8 +6,10 @@ export type AXNode = {
   name?: string;
   checked?: boolean | 'mixed';
   disabled?: boolean;
-  /** Ref-free literal line (bare text value or /prop:): rendered verbatim, never
-   *  assigned a ref, never resolvable. `line` holds the content after "- ". */
+  /** Ref-free literal line (bare text value, /prop:, colon-value leaf such as
+   *  `- listitem: alpha`, or unnamed element such as `- button`): rendered
+   *  verbatim, never assigned a ref, never resolvable. `line` holds the content
+   *  after "- ". */
   noRef?: true;
   line?: string;
   children?: AXNode[];
@@ -66,8 +68,18 @@ function parseNodeLine(rest: string): AXNode | null {
     }
     name = raw;
   }
-  const node: AXNode = { role };
-  if (name) node.name = name;
+  // Ref fidelity: only NAMED elements get refs.
+  // (a) colon-value leaves (`- listitem: alpha`, `- paragraph: Some text`) carry
+  //     their text as a `role: value` pair, not a quoted accessible name — the
+  //     value is page text, not a resolvable name.
+  // (b) unnamed elements (`- button`, `- list:`) must never resolve via
+  //     getByRole(role, {name: undefined}): that matches ALL same-role elements
+  //     (named ones included), so an occurrence-based nth() would mis-target
+  //     named siblings. Both render verbatim as noRef literals — model-readable,
+  //     never stored, never ref'd (Ruling 7b); unnamed elements stay reachable
+  //     via selector/evaluate.
+  if (!name) return { role, noRef: true, line: rest };
+  const node: AXNode = { role, name };
   // flags precede any ": value" suffix; only checked/disabled matter to the store
   const tail = rest.slice(i).split(':')[0] ?? '';
   for (const f of tail.matchAll(/\[([a-z-]+)(?:=([^\]]*))?\]/g)) {
@@ -105,6 +117,9 @@ export class RefStore {
   private byRef = new Map<string, RefInfo>();
   private counts = new Map<string, number>();
   private counter = 0;
+  /** CSS selector of the last render's scope, if any. A scoped snapshot counts
+   *  occurrences inside its subtree, so its refs must also resolve there (C1c). */
+  private scope: string | undefined;
 
   assign(role: string, name: string): string {
     const key = `${role}\u0000${name}`;
@@ -116,12 +131,16 @@ export class RefStore {
   }
 
   get(ref: string): RefInfo | undefined { return this.byRef.get(ref); }
-  clear() { this.byRef.clear(); this.counts.clear(); this.counter = 0; }
+  clear() { this.byRef.clear(); this.counts.clear(); this.counter = 0; this.scope = undefined; }
 
   async resolve(page: Page, ref: string): Promise<Locator> {
     const info = this.byRef.get(ref);
     if (!info) this.throwStale(page, ref);
-    const locator = page.getByRole(info!.role as any, { name: info!.name || undefined, exact: true }).nth(info!.occurrence);
+    // Scoped snapshot → scoped resolution: occurrences were counted inside the
+    // render-time subtree, so searching the whole document could land on an
+    // identical element from a sibling subtree.
+    const base = this.scope ? page.locator(this.scope).first() : page;
+    const locator = base.getByRole(info!.role as any, { name: info!.name, exact: true }).nth(info!.occurrence);
     // awaited liveness check: a ref that no longer matches enough elements must
     // surface as StaleRefError (with the last-rendered snapshot), never as a raw
     // action timeout.
@@ -141,6 +160,7 @@ export class RefStore {
     const lines: string[] = [];
     // fresh store per render keeps occurrence counts consistent with what is on screen
     this.clear();
+    this.scope = selector;
     const walk = (node: AXNode, depth: number): void => {
       const indent = '  '.repeat(depth);
       if (node.noRef) {

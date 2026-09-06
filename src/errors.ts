@@ -16,7 +16,11 @@ export class StaleRefError extends BrowserError {
     const snap = rawSnapshot.length > PI_MAX_BYTES
       ? `${rawSnapshot.slice(0, PI_MAX_BYTES)}\n\n[Snapshot truncated at 50KB — re-call browser_snapshot with a selector.]`
       : rawSnapshot;
-    super(`Ref ${ref} is stale — fresh snapshot attached below. Retry with one of its refs.\n\n${snap}`);
+    // Empty last-rendered cache (fresh store, e.g. never rendered or just
+    // invalidated): nothing is attached, so the message must not say "below".
+    super(rawSnapshot
+      ? `Ref ${ref} is stale — fresh snapshot attached below. Retry with one of its refs.\n\n${snap}`
+      : `Ref ${ref} is stale or unknown — re-call browser_snapshot to get fresh refs.`);
     this.freshSnapshot = snap;
     this.name = 'StaleRefError';
   }
