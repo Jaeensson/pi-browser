@@ -118,3 +118,9 @@ for our own extension, ref-based interaction is worth porting (selector-in, ref-
 - Playwright team: coding agents increasingly prefer CLI+skills over MCP (tokens).
 - Chrome 136+ requires a dedicated profile for CDP attach.
 - Prior art: oh-my-pi (Pi fork) ships `browser` (Puppeteer/CDP/relay) + `computer`.
+
+## Rollout status
+
+IMPLEMENTED on branch feature/pi-dev-browser (64/64 tests, tsc clean, live acceptance PASS 2026-09-06).
+Pending: merge decision + rollout (remove ~/.pi/agent/extensions/pi-browser, install pi-dev-browser).
+
