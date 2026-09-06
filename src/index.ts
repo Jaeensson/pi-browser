@@ -19,7 +19,7 @@ export default function (pi: ExtensionAPI) {
   const registerCore = () => {
     if (registered) return;
     registered = true;
-    // Populated incrementally by Tasks 8–14; ends at 19 entries.
+    // All 19 core tools (complete as of Task 14).
     const core: BrowserTool[] = [
       ...makeNavigateTools(session),
       ...makeObserveTools(session),
@@ -56,7 +56,6 @@ export default function (pi: ExtensionAPI) {
     run: async (s, params, resp, onUpdate) => {
       await s.launch(params ?? {}, process.cwd(), onUpdate);
       registerCore();
-      // Aspirational until Task 14 wires all core tools; registration.test tracks the real set.
       const names = ['browser_navigate', 'browser_navigate_back', 'browser_reload', 'browser_snapshot',
         'browser_take_screenshot', 'browser_click', 'browser_type', 'browser_press_key', 'browser_fill_form',
         'browser_hover', 'browser_evaluate', 'browser_console_messages', 'browser_network_requests',

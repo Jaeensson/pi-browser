@@ -33,13 +33,13 @@ describe('registration lifecycle', () => {
 
     const launchResult = await pi.execute('browser_launch', {});
     expect(launchResult.isError).toBeUndefined(); // launch must actually launch, not error
-    // Task 14 pins this to exactly 20; until then register whatever the core modules export.
-    expect(pi.tools.size).toBe(expectedNames.size);
+    // All 20 tools: browser_launch + exactly 19 core tools (toolkit complete as of Task 14).
+    expect(pi.tools.size).toBe(20);
     expect(new Set(pi.tools.keys())).toEqual(expectedNames);
 
     // idempotent: launching again must not throw from duplicate registration
     await pi.execute('browser_launch', { mode: 'headed' });
-    expect(pi.tools.size).toBe(expectedNames.size);
+    expect(pi.tools.size).toBe(20);
     await pi.shutdownHandlers[0]?.();
   }, 60_000);
 
@@ -50,8 +50,11 @@ describe('registration lifecycle', () => {
     expect(launch.description).toMatch(/browser_run/);
     expect(launch.promptGuidelines?.join(' ')).toMatch(/browser_launch/);
     const result = await pi.execute('browser_launch', {});
-    expect(pi.text(result)).toMatch(/Registered \d+ tools/);
-    expect(pi.text(result)).toMatch(/browser_navigate/);
+    const text = pi.text(result);
+    expect(text).toContain('Registered 19 tools');
+    const listed = text.split('Registered 19 tools:\n')[1]!.split('\n')[0].trim().split(/,\s*/);
+    expect(listed).toHaveLength(19);
+    expect(new Set(listed)).toEqual(new Set(coreTools.map(t => t.name)));
     await pi.shutdownHandlers[0]?.();
   }, 60_000);
 
