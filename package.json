@@ -1,0 +1,12 @@
+{
+  "name": "pi-dev-browser",
+  "version": "0.1.0",
+  "description": "Development-loop browser for the pi coding agent: ref-based automation, console/network debugging, responsive screenshots",
+  "license": "MIT",
+  "type": "module",
+  "pi": { "extensions": ["./src/index.ts"] },
+  "dependencies": { "playwright": "^1.61.0" },
+  "peerDependencies": { "@earendil-works/pi-coding-agent": "*", "typebox": "*" },
+  "devDependencies": { "@types/node": "^22.0.0", "typescript": "^5.9.3", "vitest": "^4.1.10" },
+  "scripts": { "test": "vitest run", "test:watch": "vitest" }
+}
