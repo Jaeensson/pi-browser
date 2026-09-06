@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
-import { homedir, tmpdir } from 'node:os';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { devices, type BrowserContextOptions } from 'playwright';
 import { LaunchError } from './errors';
 
@@ -81,7 +82,7 @@ export function normalizeUrl(raw: string): string {
 
 export async function installChromium(onProgress?: (m: string) => void): Promise<void> {
   const { spawn } = await import('node:child_process');
-  const extDir = new URL('..', import.meta.url).pathname;
+  const extDir = fileURLToPath(new URL('..', import.meta.url));
   await new Promise<void>((resolve, reject) => {
     const child = spawn('node', [join(extDir, 'node_modules', 'playwright', 'cli.js'), 'install', 'chromium'], {
       cwd: extDir, stdio: ['ignore', 'pipe', 'pipe'],
@@ -95,5 +96,4 @@ export async function installChromium(onProgress?: (m: string) => void): Promise
     child.on('exit', code => (code === 0 ? resolve() : reject(new LaunchError(`playwright install exited ${code}`, 'npx playwright install chromium'))));
     child.on('error', reject);
   });
-  void tmpdir;
 }
