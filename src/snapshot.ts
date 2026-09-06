@@ -14,13 +14,39 @@ export type RefInfo = { ref: string; role: string; name: string; occurrence: num
 // successor. It serializes to YAML, so we parse it back into the same AXNode tree
 // shape the ref store was designed around (role/name/checked/disabled/children).
 export async function captureAccessibility(page: Page, selector?: string): Promise<AXNode | null> {
-  const yaml = selector
-    ? await page.locator(selector).first().ariaSnapshot()
-    : await page.ariaSnapshot();
-  return parseAriaSnapshot(yaml);
+  const roots = parseAriaSnapshot(await ariaYaml(page, selector));
+  if (roots.length === 0) return null;
+  // Multi-root snapshots need one AXNode per this function's signature. 'fragment'
+  // is a pure type adapter here; the ref store walks parseAriaSnapshot's root list
+  // directly, so a wrapper node is never walked and never assigned a ref.
+  return roots.length === 1 ? roots[0]! : { role: 'fragment', children: roots };
 }
 
-function parseNodeLine(rest: string): AXNode {
+async function ariaYaml(page: Page, selector?: string): Promise<string> {
+  return selector ? await page.locator(selector).first().ariaSnapshot() : await page.ariaSnapshot();
+}
+
+// prop lines (/url:, /placeholder:, …) and bare text-value lines (text: …) are not
+// elements — they cannot resolve via getByRole, so they get no node and no ref.
+const NON_ELEMENT_LINE = /^(?:\/[^\s:]*:|text:)/;
+
+function parseNodeLine(rest: string): AXNode | null {
+  if (NON_ELEMENT_LINE.test(rest)) return null;
+  // YAML single-quotes the whole key (doubling any inner ') when the accessible
+  // name forces it: - 'button "Save: Draft"' — also for ' #', {, }, `. Strip the
+  // wrapper, unescape '', then re-parse the inner key: role + quoted name + flags.
+  if (rest.startsWith("'")) {
+    let j = 1;
+    let inner = '';
+    while (j < rest.length) {
+      if (rest[j] === "'") {
+        if (rest[j + 1] === "'") { inner += "'"; j += 2; continue; }
+        break;
+      }
+      inner += rest[j++];
+    }
+    return parseNodeLine(inner);
+  }
   const role = /^[^ ":]+/.exec(rest)?.[0] ?? 'generic';
   let i = role.length;
   if (rest[i] === ' ') i++;
@@ -45,7 +71,10 @@ function parseNodeLine(rest: string): AXNode {
   return node;
 }
 
-function parseAriaSnapshot(yaml: string): AXNode | null {
+/** Pure ariaSnapshot-YAML → AXNode parser. Returns the root nodes — multi-root
+ *  snapshots stay unwrapped (no fragment node) — and emits nothing for prop or
+ *  bare text-value lines. Exported for unit tests. */
+export function parseAriaSnapshot(yaml: string): AXNode[] {
   const lines = yaml.split('\n').filter(l => l.trim() !== '');
   let pos = 0;
   const parseLevel = (indent: number): AXNode[] => {
@@ -56,15 +85,13 @@ function parseAriaSnapshot(yaml: string): AXNode | null {
       pos++;
       const node = parseNodeLine(m[2]);
       const children = parseLevel(m[1].length + 2);
+      if (!node) continue; // prop/text-value line: never has children in ariaSnapshot
       if (children.length > 0) node.children = children;
       nodes.push(node);
     }
     return nodes;
   };
-  const roots = parseLevel(0);
-  if (roots.length === 0) return null;
-  // a full-page snapshot has sibling roots and no WebArea-style root; keep one tree
-  return roots.length === 1 ? roots[0]! : { role: 'fragment', children: roots };
+  return parseLevel(0);
 }
 
 export class RefStore {
@@ -84,14 +111,15 @@ export class RefStore {
   get(ref: string): RefInfo | undefined { return this.byRef.get(ref); }
   clear() { this.byRef.clear(); this.counts.clear(); this.counter = 0; }
 
-  resolve(page: Page, ref: string): Locator {
+  async resolve(page: Page, ref: string): Promise<Locator> {
     const info = this.byRef.get(ref);
     if (!info) this.throwStale(page, ref);
     const locator = page.getByRole(info!.role as any, { name: info!.name || undefined, exact: true }).nth(info!.occurrence);
-    // count() is a heuristic liveness check; Playwright re-resolves at action time.
-    const check = locator.count().then(c => { if (c <= info!.occurrence) this.throwStale(page, ref); });
-    // resolve returns the locator synchronously; staleness with a live page is re-thrown at action time.
-    void check.catch(() => {});
+    // awaited liveness check: a ref that no longer matches enough elements must
+    // surface as StaleRefError (with the last-rendered snapshot), never as a raw
+    // action timeout.
+    const count = await locator.count();
+    if (count <= info!.occurrence) this.throwStale(page, ref);
     return locator;
   }
 
@@ -102,12 +130,11 @@ export class RefStore {
   private renderSyncCache = '';
 
   async render(page: Page, selector?: string): Promise<string> {
-    const tree = await captureAccessibility(page, selector);
+    const roots = parseAriaSnapshot(await ariaYaml(page, selector));
     const lines: string[] = [];
     // fresh store per render keeps occurrence counts consistent with what is on screen
     this.clear();
-    const walk = (node: AXNode | null, depth: number): void => {
-      if (!node) return;
+    const walk = (node: AXNode, depth: number): void => {
       const ref = this.assign(node.role, node.name ?? '');
       const flags: string[] = [];
       if (node.checked === 'mixed') flags.push('[mixed]');
@@ -117,7 +144,7 @@ export class RefStore {
       lines.push(`${'  '.repeat(depth)}- ${node.role}${label}${flags.length ? ' ' + flags.join(' ') : ''} [ref=${ref}]`);
       for (const child of node.children ?? []) walk(child, depth + 1);
     };
-    walk(tree, 0);
+    for (const root of roots) walk(root, 0);
     this.renderSyncCache = lines.join('\n');
     return this.renderSyncCache;
   }
