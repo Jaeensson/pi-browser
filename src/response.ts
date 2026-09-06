@@ -9,6 +9,8 @@ export const PI_MAX_BYTES = 50 * 1024;
 export type PiToolResult = {
   content: Array<{ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }>;
   details: Record<string, unknown>;
+  /** Set by tools/factory when a BrowserError family error is surfaced as a result. */
+  isError?: boolean;
 };
 
 export function spillToTempFile(text: string): { path: string; size: number } {
