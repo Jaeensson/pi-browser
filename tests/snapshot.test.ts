@@ -36,6 +36,15 @@ describe('RefStore', () => {
     await close();
   });
 
+  it('render() prints text/prop lines verbatim without refs and never counts them (Ruling 7b)', async () => {
+    const store = new RefStore();
+    const yaml = await store.render({
+      ariaSnapshot: async () => '- button "Save":\n  - /url: https://fixture.test/\n  - text: saved!',
+    } as any);
+    expect(yaml).toBe('- button "Save" [ref=e1]\n  - /url: https://fixture.test/\n  - text: saved!');
+    expect(store.get('e2')).toBeUndefined(); // literal lines consumed no refs
+  });
+
   it('resolve() throws StaleRefError with fresh snapshot for unknown refs', async () => {
     const { context, close } = await chrom.launchTestContext();
     const page = await context.newPage();
@@ -92,7 +101,7 @@ describe('parseAriaSnapshot (pure, no browser)', () => {
     expect(hash[0]).toEqual({ role: 'link', name: 'Docs #draft' });
   });
 
-  it('emits no nodes for /url: and /placeholder: prop lines', () => {
+  it('emits ref-free literal nodes for /url: and /placeholder: prop lines', () => {
     const roots = parseAriaSnapshot([
       '- link "Home":',
       '  - /url: https://example.com',
@@ -100,17 +109,15 @@ describe('parseAriaSnapshot (pure, no browser)', () => {
       '  - /placeholder: you@example.com',
     ].join('\n'));
     expect(roots.map(n => n.role)).toEqual(['link', 'textbox']);
-    expect(roots[0]!.children).toBeUndefined();
-    expect(roots[1]!.children).toBeUndefined();
-    expect(JSON.stringify(roots)).not.toContain('/url');
-    expect(JSON.stringify(roots)).not.toContain('placeholder');
+    expect(roots[0]!.children).toEqual([{ role: 'text', noRef: true, line: '/url: https://example.com' }]);
+    expect(roots[1]!.children).toEqual([{ role: 'text', noRef: true, line: '/placeholder: you@example.com' }]);
   });
 
-  it('emits no node for a bare text-value line', () => {
-    expect(parseAriaSnapshot('- text: saved!')).toEqual([]);
+  it('emits a ref-free literal node for a bare text-value line', () => {
+    expect(parseAriaSnapshot('- text: saved!')).toEqual([{ role: 'text', noRef: true, line: 'text: saved!' }]);
     const roots = parseAriaSnapshot('- generic "Status":\n  - text: saved!');
     expect(roots).toHaveLength(1);
-    expect(roots[0]).toEqual({ role: 'generic', name: 'Status' });
+    expect(roots[0]).toEqual({ role: 'generic', name: 'Status', children: [{ role: 'text', noRef: true, line: 'text: saved!' }] });
   });
 
   it('keeps multi-root snapshots unwrapped (no fragment wrapper node)', () => {

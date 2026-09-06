@@ -6,6 +6,10 @@ export type AXNode = {
   name?: string;
   checked?: boolean | 'mixed';
   disabled?: boolean;
+  /** Ref-free literal line (bare text value or /prop:): rendered verbatim, never
+   *  assigned a ref, never resolvable. `line` holds the content after "- ". */
+  noRef?: true;
+  line?: string;
   children?: AXNode[];
 };
 export type RefInfo = { ref: string; role: string; name: string; occurrence: number };
@@ -27,11 +31,13 @@ async function ariaYaml(page: Page, selector?: string): Promise<string> {
 }
 
 // prop lines (/url:, /placeholder:, …) and bare text-value lines (text: …) are not
-// elements — they cannot resolve via getByRole, so they get no node and no ref.
+// elements — they cannot resolve via getByRole, so they get no ref. They are kept as
+// noRef literal nodes so render() still shows them (Ruling 7b: visible page text must
+// stay model-readable); the store never assigns or counts them.
 const NON_ELEMENT_LINE = /^(?:\/[^\s:]*:|text:)/;
 
 function parseNodeLine(rest: string): AXNode | null {
-  if (NON_ELEMENT_LINE.test(rest)) return null;
+  if (NON_ELEMENT_LINE.test(rest)) return { role: 'text', noRef: true, line: rest };
   // YAML single-quotes the whole key (doubling any inner ') when the accessible
   // name forces it: - 'button "Save: Draft"' — also for ' #', {, }, `. Strip the
   // wrapper, unescape '', then re-parse the inner key: role + quoted name + flags.
@@ -72,8 +78,9 @@ function parseNodeLine(rest: string): AXNode | null {
 }
 
 /** Pure ariaSnapshot-YAML → AXNode parser. Returns the root nodes — multi-root
- *  snapshots stay unwrapped (no fragment node) — and emits nothing for prop or
- *  bare text-value lines. Exported for unit tests. */
+ *  snapshots stay unwrapped (no fragment node) — with prop and bare text-value
+ *  lines emitted as noRef literal nodes (rendered verbatim, never ref'd).
+ *  Exported for unit tests. */
 export function parseAriaSnapshot(yaml: string): AXNode[] {
   const lines = yaml.split('\n').filter(l => l.trim() !== '');
   let pos = 0;
@@ -135,13 +142,20 @@ export class RefStore {
     // fresh store per render keeps occurrence counts consistent with what is on screen
     this.clear();
     const walk = (node: AXNode, depth: number): void => {
-      const ref = this.assign(node.role, node.name ?? '');
-      const flags: string[] = [];
-      if (node.checked === 'mixed') flags.push('[mixed]');
-      else if (node.checked === true) flags.push('[checked]');
-      if (node.disabled) flags.push('[disabled]');
-      const label = node.name ? ` "${node.name}"` : '';
-      lines.push(`${'  '.repeat(depth)}- ${node.role}${label}${flags.length ? ' ' + flags.join(' ') : ''} [ref=${ref}]`);
+      const indent = '  '.repeat(depth);
+      if (node.noRef) {
+        // ref-free literal line (text value or /prop:): visible in the snapshot but
+        // unresolvable by design — no [ref=…], no store entry (Ruling 7b)
+        lines.push(`${indent}- ${node.line}`);
+      } else {
+        const ref = this.assign(node.role, node.name ?? '');
+        const flags: string[] = [];
+        if (node.checked === 'mixed') flags.push('[mixed]');
+        else if (node.checked === true) flags.push('[checked]');
+        if (node.disabled) flags.push('[disabled]');
+        const label = node.name ? ` "${node.name}"` : '';
+        lines.push(`${indent}- ${node.role}${label}${flags.length ? ' ' + flags.join(' ') : ''} [ref=${ref}]`);
+      }
       for (const child of node.children ?? []) walk(child, depth + 1);
     };
     for (const root of roots) walk(root, 0);
