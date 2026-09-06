@@ -40,11 +40,15 @@ describe('BrowserSession', () => {
     await s.launch({}, process.cwd());
     await installFixture(s.context);
     await s.page.goto(FIXTURE_URL);
-    await s.page.evaluate(() => { console.info('info-msg'); console.error('err-msg'); });
+    await s.page.evaluate(() => { console.log('hello'); console.info('info-msg'); console.error('err-msg'); });
     await s.page.waitForTimeout(200);
     const errors = s.consoleEntries('error');
     expect(errors.some(e => e.text.includes('err-msg'))).toBe(true);
     expect(errors.some(e => e.text.includes('info-msg'))).toBe(false);
+    // console.log is mapped to 'info' (not left as the raw 'log' type) so the
+    // default console_entries view surfaces it.
+    const infos = s.consoleEntries('info');
+    expect(infos.some(e => e.text.includes('hello'))).toBe(true);
     await s.disconnect();
   }, 30_000);
 
@@ -52,7 +56,7 @@ describe('BrowserSession', () => {
     const s = new BrowserSession();
     await s.launch({}, process.cwd());
     const first = s.context;
-    await s.launch({ mode: 'headed' === 'headed' ? {} : {} }, process.cwd()); // same opts; still relaunches
+    await s.launch({}, process.cwd()); // same opts; still relaunches
     expect(s.context).not.toBe(first);
     await s.disconnect();
   }, 30_000);

@@ -69,10 +69,8 @@ export class BrowserSession {
     context.on('page', p => this.attach(p));
     for (const p of context.pages()) this.attach(p);
     context.on('response', res => {
-      const entry = this.networkBuf.get(res.request()._guid ?? `${res.url()}`);
-      // map key falls back to request identity below; see recordRequest
-      const key = this.keyOf(res.request().url(), res.request().method());
-      const found = entry ?? this.networkBuf.get(key);
+      // map key mirrors recordRequest; responses arrive after their request entry
+      const found = this.networkBuf.get(this.keyOf(res.request().url(), res.request().method()));
       if (found) found.status = res.status();
     });
     context.on('request', req => this.recordRequest(req.url(), req.method(), req.resourceType()));
@@ -84,7 +82,12 @@ export class BrowserSession {
   }
 
   attach(p: Page) {
-    p.on('console', (m: ConsoleMessage) => this.consoleBuf.push({ level: m.type(), text: m.text() }));
+    // Playwright reports console.log/dirxml/table as type 'log'/'dirxml'/'table' —
+    // fold them into the debug/info levels the LEVELS filter understands.
+    p.on('console', (m: ConsoleMessage) => {
+      const lvl = ({ log: 'info', dirxml: 'info', table: 'info', trace: 'debug' } as any)[m.type()] ?? m.type();
+      this.consoleBuf.push({ level: lvl, text: m.text() });
+    });
     p.on('pageerror', e => this.consoleBuf.push({ level: 'error', text: String(e) }));
     p.on('dialog', async d => {
       this.modal = `${d.type()}: ${d.message()} (auto-dismissed)`;

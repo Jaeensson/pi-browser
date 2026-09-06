@@ -38,18 +38,16 @@ describe('interaction tools', () => {
     await pi.shutdownHandlers[0]?.();
   }, 60_000);
 
-  it('stale ref self-heals: error result embeds a fresh annotated snapshot', async () => {
+  it('stale ref self-heals: rejection embeds a fresh annotated snapshot', async () => {
     const { pi, session } = await launchedWithFixture();
     const snap = pi.text(await pi.execute('browser_snapshot', {}));
     const staleRef = snap.match(/button "Save" \[ref=(e\d+)\]/)![1];
     // Real staleness (Ruling 7c): mutate the DOM behind the store's back so the
     // async count-check in RefStore.resolve must reject the captured ref.
     await session.page.evaluate(() => document.getElementById('save')!.remove());
-    const result = await pi.execute('browser_click', { ref: staleRef });
-    expect(result.isError ?? true).toBeTruthy();
-    const text = pi.text(result);
-    expect(text).toMatch(/stale/i);
-    expect(text).toMatch(/\[ref=e\d+\]/); // fresh snapshot attached for self-heal
+    const err: any = await pi.execute('browser_click', { ref: staleRef }).catch((e: any) => e);
+    expect(String(err?.message ?? err)).toMatch(/stale/i);
+    expect(String(err?.message ?? err)).toMatch(/\[ref=e\d+\]/); // fresh snapshot attached for self-heal
     await pi.shutdownHandlers[0]?.();
   }, 60_000);
 

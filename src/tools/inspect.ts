@@ -38,7 +38,7 @@ export function makeInspectTools(session: BrowserSession): BrowserTool[] {
       }),
       run: async (s, p, resp) => {
         const level = p.level as any;
-        if (p.level && !(level in { debug: 1, info: 1, warning: 1, error: 1 })) throw new BrowserError('level must be debug, info, warning, or error.');
+        if (p.level && !Object.hasOwn({ debug: 1, info: 1, warning: 1, error: 1 }, level)) throw new BrowserError('level must be debug, info, warning, or error.');
         const entries = s.consoleEntries(level);
         resp.addResult(entries.length ? entries.map(e => `[${e.level.toUpperCase()}] ${e.text}`).join('\n') : 'No console messages.');
       },

@@ -18,8 +18,9 @@ export function makeWaitTools(session: BrowserSession): BrowserTool[] {
         time: Type.Optional(Type.Number({ description: 'seconds' })),
       }),
       run: async (s, p, resp) => {
-        const given = ['text', 'textGone', 'selector', 'hidden', 'loadState', 'time'].filter(k => p[k] !== undefined);
-        if (given.length !== 1) throw new Error('Provide exactly one of: text, textGone, selector (+optional hidden), loadState, time.');
+        // `hidden` is a modifier of `selector`, never a standalone choice.
+        const given = ['text', 'textGone', 'selector', 'loadState', 'time'].filter(k => p[k] !== undefined);
+        if (given.length !== 1 || (p.hidden !== undefined && !p.selector)) throw new Error('Provide exactly one of: text, textGone, selector (+optional hidden), loadState, time.');
         const page = s.page;
         if (p.text !== undefined) { await page.getByText(p.text).first().waitFor({ state: 'visible', timeout: ACTION_TIMEOUT_MS }); resp.addResult(`Text "${p.text}" appeared.`); }
         else if (p.textGone !== undefined) { await page.getByText(p.textGone).first().waitFor({ state: 'hidden', timeout: ACTION_TIMEOUT_MS }); resp.addResult(`Text "${p.textGone}" is gone.`); }

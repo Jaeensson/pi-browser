@@ -1,15 +1,13 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import type { Page } from 'playwright';
-import type { RefStore } from './snapshot';
 
 export const PI_MAX_BYTES = 50 * 1024;
 
 export type PiToolResult = {
   content: Array<{ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }>;
   details: Record<string, unknown>;
-  /** Set by tools/factory when a BrowserError family error is surfaced as a result. */
+  /** pi's native result shape supports isError; this extension surfaces errors by throwing instead. */
   isError?: boolean;
 };
 
@@ -39,8 +37,8 @@ export class BrowserResponse {
   set _code(v: string[]) { this.code = v; }
 
   async build(deps: {
-    page: Pick<Page, 'url'> & { title(): Promise<string> } | null;
-    store: Pick<RefStore, 'render'> | null;
+    page: { url(): string; title(): Promise<string> } | null;
+    store: { render(page: { url(): string; title(): Promise<string> }, selector?: string): Promise<string> } | null;
     takeModal: () => string | null;
   }): Promise<PiToolResult> {
     const sections: string[] = [];

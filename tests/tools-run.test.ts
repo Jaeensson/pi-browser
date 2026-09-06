@@ -27,9 +27,8 @@ describe('browser_run', () => {
     try {
       extension(pi as any);
       await pi.execute('browser_launch', {});
-      const r = await pi.execute('browser_run', { code: 'await page.waitForTimeout(5000); return "done";' });
-      expect(r.isError ?? false).toBe(true);
-      expect(pi.text(r)).toMatch(/timed out/i);
+      const r = await pi.execute('browser_run', { code: 'await page.waitForTimeout(5000); return "done";' }).catch((e: any) => e);
+      expect(String(r?.message ?? r)).toMatch(/timed out/i);
     } finally {
       delete process.env.PI_DEV_BROWSER_RUN_TIMEOUT_MS;
       await pi.shutdownHandlers[0]?.();

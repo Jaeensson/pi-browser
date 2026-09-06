@@ -30,6 +30,17 @@ describe('browser_wait_for', () => {
     expect(pi.text(r)).toMatch(/gone|hidden/i);
     const bad = await pi.execute('browser_wait_for', { text: 'a', time: 1 }).catch(e => e);
     expect(String(bad?.message ?? pi.text(bad as any))).toMatch(/one of/i);
+    // hidden is a modifier of selector, not a standalone choice
+    const badHidden = await pi.execute('browser_wait_for', { hidden: true }).catch(e => e);
+    expect(String(badHidden?.message ?? badHidden)).toMatch(/one of/i);
+    await pi.shutdownHandlers[0]?.();
+  }, 60_000);
+
+  it('selector + hidden:true resolves for an already-hidden element', async () => {
+    const { pi } = await launchedWithFixture();
+    // fixture `#late` ships hidden → the hidden-state wait resolves immediately
+    const r = await pi.execute('browser_wait_for', { selector: '#late', hidden: true });
+    expect(pi.text(r)).toMatch(/Selector #late is hidden/);
     await pi.shutdownHandlers[0]?.();
   }, 60_000);
 });

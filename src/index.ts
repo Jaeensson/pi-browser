@@ -53,8 +53,8 @@ export default function (pi: ExtensionAPI) {
     }),
     omitSnapshot: true,
     requireLaunched: false,
-    run: async (s, params, resp, onUpdate) => {
-      await s.launch(params ?? {}, process.cwd(), onUpdate);
+    run: async (s, params, resp, onUpdate, ctx) => {
+      await s.launch(params ?? {}, ctx?.cwd ?? process.cwd(), onUpdate);
       registerCore();
       const names = ['browser_navigate', 'browser_navigate_back', 'browser_reload', 'browser_snapshot',
         'browser_take_screenshot', 'browser_click', 'browser_type', 'browser_press_key', 'browser_fill_form',

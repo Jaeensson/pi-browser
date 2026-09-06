@@ -1,5 +1,4 @@
 import { Type } from 'typebox';
-import { BrowserError } from '../errors';
 import { browserTool, type BrowserTool } from './factory';
 import type { BrowserSession } from '../session';
 import { resolveTarget } from './resolve';

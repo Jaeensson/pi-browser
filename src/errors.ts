@@ -1,3 +1,5 @@
+import { PI_MAX_BYTES } from './response';
+
 export class BrowserError extends Error {
   constructor(message: string) { super(message); this.name = 'BrowserError'; }
 }
@@ -7,8 +9,15 @@ export class NotLaunchedError extends BrowserError {
 }
 
 export class StaleRefError extends BrowserError {
-  constructor(public readonly freshSnapshot: string, ref: string) {
-    super(`Ref ${ref} is stale — fresh snapshot attached below. Retry with one of its refs.\n\n${freshSnapshot}`);
+  readonly freshSnapshot: string;
+  constructor(rawSnapshot: string, ref: string) {
+    // The snapshot competes with the rest of the tool result for the 50KB cap, so
+    // an oversized one is truncated with a pointer back to browser_snapshot.
+    const snap = rawSnapshot.length > PI_MAX_BYTES
+      ? `${rawSnapshot.slice(0, PI_MAX_BYTES)}\n\n[Snapshot truncated at 50KB — re-call browser_snapshot with a selector.]`
+      : rawSnapshot;
+    super(`Ref ${ref} is stale — fresh snapshot attached below. Retry with one of its refs.\n\n${snap}`);
+    this.freshSnapshot = snap;
     this.name = 'StaleRefError';
   }
 }

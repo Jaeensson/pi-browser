@@ -25,20 +25,25 @@ export function makeRunTools(session: BrowserSession): BrowserTool[] {
         // eslint-disable-next-line no-new-func
         const fn = new Function('page', 'context', 'browser', `'use strict'; return (async () => {\n${p.code}\n})()`);
         let value: unknown;
+        let out: string;
         const user = fn(page, context, browser);
         user.catch(() => {}); // keep post-timeout rejections (e.g. browser closed) from becoming unhandled
         try {
           value = await Promise.race([
             user,
-            // BrowserError so tools/factory maps the timeout to an isError result instead of rethrowing.
+            // BrowserError so the factory surfaces the timeout message to the LLM.
             new Promise((_, rej) => setTimeout(() => rej(new BrowserError(`browser_run timed out after ${RUN_TIMEOUT_MS() / 1000}s.`)), RUN_TIMEOUT_MS())),
           ]);
+          // Serialize inside the try: a cyclic return value must surface as a
+          // BrowserError, not escape as a raw TypeError.
+          out = typeof value === 'string'
+            ? value
+            : JSON.stringify(value, (_k, v) => (typeof v === 'bigint' ? String(v) : v), 2);
         } catch (e: any) {
           resp.omitSnapshot();
           if (e instanceof BrowserError) throw e;
-          throw Object.assign(new Error(e?.message ?? String(e)), { fatal: false });
+          throw new Error(e?.message ?? String(e));
         }
-        const out = typeof value === 'string' ? value : JSON.stringify(value, (_k, v) => (typeof v === 'bigint' ? String(v) : v), 2);
         if (out !== undefined && out.length > PI_MAX_BYTES) {
           const { path } = spillToTempFile(out);
           resp.addResult(`Output too large (${out.length} bytes). saved to: ${path}`);

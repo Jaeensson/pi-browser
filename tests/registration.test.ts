@@ -32,7 +32,7 @@ describe('registration lifecycle', () => {
     expect(pi.tools.size).toBe(1);
 
     const launchResult = await pi.execute('browser_launch', {});
-    expect(launchResult.isError).toBeUndefined(); // launch must actually launch, not error
+    expect(pi.text(launchResult)).toMatch(/Launched Chromium/); // launch must actually launch, not error
     // All 20 tools: browser_launch + exactly 19 core tools (toolkit complete as of Task 14).
     expect(pi.tools.size).toBe(20);
     expect(new Set(pi.tools.keys())).toEqual(expectedNames);

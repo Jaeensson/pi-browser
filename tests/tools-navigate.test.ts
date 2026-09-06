@@ -31,18 +31,16 @@ describe('navigation tools', () => {
     await pi.shutdownHandlers[0]?.();
   }, 60_000);
 
-  // Controller ruling: the factory maps BrowserError to an isError result, so navigating a
-  // registered toolkit with no live session must resolve to an error result naming
-  // browser_launch, not throw. Tools stay registered after session shutdown, so the
-  // not-launched state is reached by launching and then shutting down (pre-launch the tool
-  // is intentionally unregistered — see registration.test.ts).
-  it('navigate with no live session yields an isError result pointing at browser_launch', async () => {
+  // Controller ruling (native pi tool contract): a failed tool execution THROWS from
+  // execute — pi marks the call as an error and reports the message to the LLM. Tools
+  // stay registered after session shutdown, so the not-launched state is reached by
+  // launching and then shutting down (pre-launch the tool is intentionally
+  // unregistered — see registration.test.ts).
+  it('navigate with no live session rejects, pointing at browser_launch', async () => {
     const pi = new FakePi();
     extension(pi as any);
     await pi.execute('browser_launch', {});
     await pi.shutdownHandlers[0]?.(); // session_shutdown → disconnect; core tools stay registered
-    const result = await pi.execute('browser_navigate', { url: 'example.com' });
-    expect(result.isError).toBe(true);
-    expect(pi.text(result)).toMatch(/browser_launch/);
+    await expect(pi.execute('browser_navigate', { url: 'example.com' })).rejects.toThrow(/browser_launch/);
   });
 });
