@@ -52,7 +52,7 @@ browsing; `/browser status` and `/browser disconnect` exist for humans.
 | `browser_hover` | `ref`/`selector` |
 | `browser_evaluate` | `{function}`, optional `ref` (function receives the element) |
 | `browser_console_messages` | `level?` minimum severity; buffer resets per navigation |
-| `browser_network_requests` | `filter?` regex, `type?`; recorded since last navigation |
+| `browser_network_requests` | `filter?` regex, `includeStatic?`; recorded since last navigation |
 | `browser_route` | Mock requests matching a URL pattern: `status`, `body`, `contentType`, `headers` |
 | `browser_unroute` | Remove mocks (`pattern?` omitted = all) |
 | `browser_wait_for` | one-of: `text`, `textGone`, `selector`, `hidden`, `loadState`, `time` |

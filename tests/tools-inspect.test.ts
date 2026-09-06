@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import extension from '../src/index';
 import { FakePi } from './helpers/fake-pi';
@@ -19,6 +20,15 @@ describe('inspection tools', () => {
     const r = await pi.execute('browser_evaluate', { function: '() => ({ title: document.title, n: 1 + 1 })' });
     expect(pi.text(r)).toMatch(/"title":\s*"Fixture App"/);
     expect(pi.text(r)).toMatch(/"n":\s*2/);
+    await pi.shutdownHandlers[0]?.();
+  }, 60_000);
+
+  it('evaluate spills oversized output to a file (same 50KB policy as browser_run)', async () => {
+    const { pi } = await launchedWithFixture();
+    const r = await pi.execute('browser_evaluate', { function: '() => "x".repeat(60000)' });
+    const text = pi.text(r);
+    expect(text).toMatch(/Output too large \(60000 bytes\)\. saved to: (\S+)/);
+    expect(readFileSync(text.match(/saved to: (\S+)/)![1], 'utf8').length).toBe(60000);
     await pi.shutdownHandlers[0]?.();
   }, 60_000);
 

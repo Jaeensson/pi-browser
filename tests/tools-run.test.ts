@@ -44,4 +44,32 @@ describe('browser_run', () => {
     expect(readFileSync(path, 'utf8').length).toBe(60000);
     await pi.shutdownHandlers[0]?.();
   }, 60_000);
+
+  // Spec §7 dialog policy: a user handler registered via browser_run must WIN over
+  // the session's auto-dismiss listener (which fires first — so its dismiss is
+  // deferred). The prompt's accept value proves the custom handler ran: with the
+  // old synchronous auto-dismiss, prompt() returned null and a Modal line appeared.
+  it('custom dialog handler via browser_run wins over auto-dismiss; takeModal stays null', async () => {
+    const pi = await launched();
+    const session = (globalThis as any).__piDevBrowserSession;
+    await pi.execute('browser_run', { code: `await page.setContent('<button id="b" onclick="window.r = prompt(\\'name?\\')">Ask</button>');` });
+    await pi.execute('browser_run', { code: `page.once('dialog', d => d.accept('custom-answer')); return 'handler set';` });
+    await session.page.click('#b');
+    // give the deferred auto-dismiss timeout a chance to (wrongly) fire before asserting
+    await pi.execute('browser_run', { code: 'await page.waitForTimeout(200); return "settled";' });
+    const r = await pi.execute('browser_evaluate', { function: '() => window.r' });
+    expect(pi.text(r)).toContain('custom-answer'); // the user handler consumed the dialog
+    expect(session.takeModal()).toBeNull();        // and no Modal state line was recorded
+    await pi.shutdownHandlers[0]?.();
+  }, 60_000);
+
+  // Spec §8: the session abort signal cancels in-flight waits.
+  it('rejects promptly when the abort signal fires', async () => {
+    const pi = await launched();
+    const ctrl = new AbortController();
+    const run = pi.execute('browser_run', { code: 'await page.waitForTimeout(10_000); return "done";' }, process.cwd(), undefined, ctrl.signal);
+    setTimeout(() => ctrl.abort(), 150);
+    await expect(run).rejects.toThrow(/browser_run aborted/);
+    await pi.shutdownHandlers[0]?.();
+  }, 60_000);
 });

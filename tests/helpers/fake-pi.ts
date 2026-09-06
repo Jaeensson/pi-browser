@@ -17,10 +17,10 @@ export class FakePi {
     if (event === 'session_shutdown') this.shutdownHandlers.push(handler);
   }
 
-  async execute(name: string, params: any = {}, cwd = process.cwd(), onUpdate?: (m: string) => void): Promise<PiToolResult> {
+  async execute(name: string, params: any = {}, cwd = process.cwd(), onUpdate?: (m: string) => void, signal?: AbortSignal): Promise<PiToolResult> {
     const t = this.tools.get(name);
     if (!t) throw new Error(`tool not registered: ${name}`);
-    return t.execute('call-1', params, undefined, onUpdate, { cwd });
+    return t.execute('call-1', params, signal, onUpdate, { cwd });
   }
 
   text(result: any): string {

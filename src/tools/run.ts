@@ -1,7 +1,7 @@
 import { Type } from 'typebox';
 import { BrowserError } from '../errors';
-import { spillToTempFile, PI_MAX_BYTES } from '../response';
-import { browserTool, type BrowserTool } from './factory';
+import { resultOrSpill } from '../response';
+import { abortable, browserTool, type BrowserTool } from './factory';
 import type { BrowserSession } from '../session';
 
 const RUN_TIMEOUT_MS = () => Number(process.env.PI_DEV_BROWSER_RUN_TIMEOUT_MS ?? 30_000);
@@ -18,7 +18,7 @@ export function makeRunTools(session: BrowserSession): BrowserTool[] {
         code: Type.String({ description: 'Async JS body, e.g. "await page.setViewportSize({width:800,height:600}); return await page.title();"' }),
       }),
       omitSnapshot: true,
-      run: async (s, p, resp) => {
+      run: async (s, p, resp, _onUpdate, _ctx, signal) => {
         const page = s.page;
         const context = s.context;
         const browser = context.browser();
@@ -30,7 +30,11 @@ export function makeRunTools(session: BrowserSession): BrowserTool[] {
         user.catch(() => {}); // keep post-timeout rejections (e.g. browser closed) from becoming unhandled
         try {
           value = await Promise.race([
-            user,
+            // Spec §8: race the user promise against the timeout AND the session
+            // abort signal — an aborted call rejects promptly as a BrowserError
+            // the factory surfaces to the LLM (the user body keeps running and
+            // its late rejection is swallowed by the catch above).
+            abortable(user, signal, 'browser_run aborted.'),
             // BrowserError so the factory surfaces the timeout message to the LLM.
             new Promise((_, rej) => setTimeout(() => rej(new BrowserError(`browser_run timed out after ${RUN_TIMEOUT_MS() / 1000}s.`)), RUN_TIMEOUT_MS())),
           ]);
@@ -44,12 +48,7 @@ export function makeRunTools(session: BrowserSession): BrowserTool[] {
           if (e instanceof BrowserError) throw e;
           throw new Error(e?.message ?? String(e));
         }
-        if (out !== undefined && out.length > PI_MAX_BYTES) {
-          const { path } = spillToTempFile(out);
-          resp.addResult(`Output too large (${out.length} bytes). saved to: ${path}`);
-        } else {
-          resp.addResult(out === undefined ? 'undefined' : out);
-        }
+        resp.addResult(out === undefined ? 'undefined' : resultOrSpill(out));
       },
     }),
   ];

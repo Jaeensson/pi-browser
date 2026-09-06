@@ -19,6 +19,17 @@ export function spillToTempFile(text: string): { path: string; size: number } {
   return { path, size: text.length };
 }
 
+/** Shared >50KB spill policy (spec §7 truncation): returns `text` unchanged, or a
+ *  pointer message to the spilled temp file. Used by browser_run and
+ *  browser_evaluate so both honor the same cap and message format. */
+export function resultOrSpill(text: string): string {
+  if (text.length > PI_MAX_BYTES) {
+    const { path } = spillToTempFile(text);
+    return `Output too large (${text.length} bytes). saved to: ${path}`;
+  }
+  return text;
+}
+
 export class BrowserResponse {
   private results: string[] = [];
   private code: string[] = [];

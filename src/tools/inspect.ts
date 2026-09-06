@@ -1,5 +1,6 @@
 import { Type } from 'typebox';
 import { BrowserError } from '../errors';
+import { resultOrSpill } from '../response';
 import { browserTool, type BrowserTool } from './factory';
 import type { BrowserSession } from '../session';
 import { resolveTarget } from './resolve';
@@ -26,7 +27,8 @@ export function makeInspectTools(session: BrowserSession): BrowserTool[] {
         } else {
           value = await s.page.evaluate((src: string) => { const v = eval(src); return typeof v === 'function' ? v() : v; }, p.function);
         }
-        resp.addResult(typeof value === 'string' ? value : JSON.stringify(value, null, 2));
+        // >50KB output spills to a temp file with a pointer (spec §7), same as browser_run
+        resp.addResult(resultOrSpill(typeof value === 'string' ? value : JSON.stringify(value, null, 2)));
       },
     }),
     browserTool(session, {

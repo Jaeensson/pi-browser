@@ -19,7 +19,6 @@ export class BrowserSession {
   private consoleBuf: ConsoleEntry[] = [];
   private networkBuf = new Map<string, NetworkEntry>();
   private modal: string | null = null;
-  private seq = 0;
   routes = new Map<string, { mock: RouteMock; installed: boolean }>();
 
   get active() { return this._context !== null; }
@@ -89,9 +88,18 @@ export class BrowserSession {
       this.consoleBuf.push({ level: lvl, text: m.text() });
     });
     p.on('pageerror', e => this.consoleBuf.push({ level: 'error', text: String(e) }));
-    p.on('dialog', async d => {
-      this.modal = `${d.type()}: ${d.message()} (auto-dismissed)`;
-      await d.dismiss().catch(() => {});
+    p.on('dialog', d => {
+      // Defer the auto-dismiss (spec §7 custom-handler policy): listeners fire in
+      // registration order, so a user handler registered later via browser_run
+      // (page.once('dialog', …)) runs synchronously during this same emit and
+      // consumes the dialog first. Our deferred dismiss then rejects with
+      // "already handled" and no-ops — and only a dismiss WE performed produces
+      // the Modal state line.
+      setTimeout(() => {
+        d.dismiss()
+          .then(() => { this.modal = `${d.type()}: ${d.message()} (auto-dismissed)`; })
+          .catch(() => {}); // a user handler won the dialog — stay silent
+      }, 0);
     });
     p.on('framenavigated', f => { if (f === p.mainFrame()) this.invalidate(); });
     p.on('close', () => {
@@ -149,7 +157,6 @@ export class BrowserSession {
     this._context = null;
     this._active = null;
     this.invalidate();
-    this.seq++;
     if (ctx) await ctx.close().catch(() => {});
   }
 }

@@ -38,6 +38,38 @@ describe('interaction tools', () => {
     await pi.shutdownHandlers[0]?.();
   }, 60_000);
 
+  it('unnamed elements get no ref — the getByRole(name:undefined) mis-target is dead', async () => {
+    const { pi, session } = await launchedWithFixture();
+    const snap = pi.text(await pi.execute('browser_snapshot', {}));
+    // the unnamed <button> renders verbatim, ref-free…
+    expect(snap).toMatch(/^\s*- button$/m);
+    // …and the fixture's new readable leaf lines are ref-free too (C1a)
+    expect(snap).toMatch(/^\s*- listitem: alpha$/m);
+    expect(snap).toMatch(/^\s*- listitem: beta$/m);
+    expect(snap).toMatch(/^\s*- paragraph: paragraph text$/m);
+    for (const line of snap.split('\n')) {
+      if (/listitem:|paragraph:|^\s*- button$/.test(line)) expect(line).not.toMatch(/\[ref=/);
+    }
+    // Why this matters (the verified mis-target): the pre-fix algorithm resolved
+    // unnamed refs via getByRole('button', {name: undefined}) — which matches ALL
+    // buttons, so occurrence-nth() landed on the named "Save" button. Prove that
+    // path really does target Save, then prove the store can no longer produce it:
+    await pwExpect(session.page.getByRole('button', { name: undefined }).first()).toHaveAccessibleName('Save');
+    // every ref the store actually handed out is a NAMED element (never empty-name)
+    const refs = [...snap.matchAll(/\[ref=(e\d+)\]/g)].map(m => m[1]!);
+    expect(refs.length).toBeGreaterThan(0);
+    for (const ref of refs) expect(session.store.get(ref)!.name).not.toBe('');
+    // decisive: a ref that is not in the store (the only kind an unnamed element
+    // can have now) throws StaleRefError — it can never click Save.
+    const unknown = `e${Math.max(...refs.map(r => Number(r.slice(1)))) + 1}`;
+    await expect(session.store.resolve(session.page, unknown)).rejects.toThrow(/stale/i);
+    // the named Save ref still clicks Save and only Save
+    const saveRef = snap.match(/button "Save" \[ref=(e\d+)\]/)![1]!;
+    await pi.execute('browser_click', { ref: saveRef });
+    await pwExpect(session.page.locator('#status')).toBeVisible();
+    await pi.shutdownHandlers[0]?.();
+  }, 60_000);
+
   it('stale ref self-heals: rejection embeds a fresh annotated snapshot', async () => {
     const { pi, session } = await launchedWithFixture();
     const snap = pi.text(await pi.execute('browser_snapshot', {}));

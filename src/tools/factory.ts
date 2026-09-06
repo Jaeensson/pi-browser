@@ -14,7 +14,7 @@ export type BrowserToolDef = {
   omitSnapshot?: boolean;
   /** Default true — reject with NotLaunchedError when the session isn't active. browser_launch sets false. */
   requireLaunched?: boolean;
-  run: (session: BrowserSession, params: any, resp: BrowserResponse, onUpdate?: (m: string) => void, ctx?: { cwd: string }) => Promise<void>;
+  run: (session: BrowserSession, params: any, resp: BrowserResponse, onUpdate?: (m: string) => void, ctx?: { cwd: string }, signal?: AbortSignal) => Promise<void>;
 };
 
 export type BrowserTool = {
@@ -42,12 +42,27 @@ export function browserTool(session: BrowserSession, def: BrowserToolDef): Brows
     promptSnippet: def.promptSnippet,
     promptGuidelines: def.promptGuidelines,
     parameters: def.parameters,
-    execute: async (_id, params, _signal, onUpdate, ctx) => {
+    execute: async (_id, params, signal, onUpdate, ctx) => {
       const resp = new BrowserResponse();
       if (def.omitSnapshot) resp.omitSnapshot();
       if (def.requireLaunched !== false && !session.active) throw new NotLaunchedError();
-      await def.run(session, params, resp, onUpdate, ctx);
+      await def.run(session, params, resp, onUpdate, ctx, signal);
       return await resp.build({ page: session.page, store: session.store, takeModal: () => session.takeModal() });
     },
   };
+}
+
+/** Spec §8: the session abort signal cancels in-flight waits — race `promise`
+ *  against it so an aborted tool call rejects promptly instead of running out
+ *  its full Playwright timeout. No-op when no signal was provided. */
+export function abortable<T>(promise: Promise<T>, signal: AbortSignal | undefined, message: string): Promise<T> {
+  if (!signal) return promise;
+  return Promise.race([
+    promise,
+    new Promise<never>((_, rej) => {
+      const onAbort = () => rej(new BrowserError(message));
+      if (signal.aborted) onAbort();
+      else signal.addEventListener('abort', onAbort, { once: true });
+    }),
+  ]);
 }

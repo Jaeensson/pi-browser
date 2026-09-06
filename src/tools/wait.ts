@@ -1,6 +1,6 @@
 import { Type } from 'typebox';
 import { ACTION_TIMEOUT_MS } from '../session';
-import { browserTool, type BrowserTool } from './factory';
+import { abortable, browserTool, type BrowserTool } from './factory';
 import type { BrowserSession } from '../session';
 
 export function makeWaitTools(session: BrowserSession): BrowserTool[] {
@@ -17,16 +17,18 @@ export function makeWaitTools(session: BrowserSession): BrowserTool[] {
         loadState: Type.Optional(Type.String()),
         time: Type.Optional(Type.Number({ description: 'seconds' })),
       }),
-      run: async (s, p, resp) => {
+      run: async (s, p, resp, _onUpdate, _ctx, signal) => {
         // `hidden` is a modifier of `selector`, never a standalone choice.
         const given = ['text', 'textGone', 'selector', 'loadState', 'time'].filter(k => p[k] !== undefined);
         if (given.length !== 1 || (p.hidden !== undefined && !p.selector)) throw new Error('Provide exactly one of: text, textGone, selector (+optional hidden), loadState, time.');
         const page = s.page;
-        if (p.text !== undefined) { await page.getByText(p.text).first().waitFor({ state: 'visible', timeout: ACTION_TIMEOUT_MS }); resp.addResult(`Text "${p.text}" appeared.`); }
-        else if (p.textGone !== undefined) { await page.getByText(p.textGone).first().waitFor({ state: 'hidden', timeout: ACTION_TIMEOUT_MS }); resp.addResult(`Text "${p.textGone}" is gone.`); }
-        else if (p.selector !== undefined) { await page.locator(p.selector).first().waitFor({ state: p.hidden ? 'hidden' : 'visible', timeout: ACTION_TIMEOUT_MS }); resp.addResult(`Selector ${p.selector} is ${p.hidden ? 'hidden' : 'visible'}.`); }
-        else if (p.loadState !== undefined) { await page.waitForLoadState(p.loadState as any, { timeout: ACTION_TIMEOUT_MS }); resp.addResult(`Load state "${p.loadState}" reached.`); }
-        else { await page.waitForTimeout(p.time * 1000); resp.addResult(`Waited ${p.time}s.`); }
+        await abortable((async () => {
+          if (p.text !== undefined) { await page.getByText(p.text).first().waitFor({ state: 'visible', timeout: ACTION_TIMEOUT_MS }); resp.addResult(`Text "${p.text}" appeared.`); }
+          else if (p.textGone !== undefined) { await page.getByText(p.textGone).first().waitFor({ state: 'hidden', timeout: ACTION_TIMEOUT_MS }); resp.addResult(`Text "${p.textGone}" is gone.`); }
+          else if (p.selector !== undefined) { await page.locator(p.selector).first().waitFor({ state: p.hidden ? 'hidden' : 'visible', timeout: ACTION_TIMEOUT_MS }); resp.addResult(`Selector ${p.selector} is ${p.hidden ? 'hidden' : 'visible'}.`); }
+          else if (p.loadState !== undefined) { await page.waitForLoadState(p.loadState as any, { timeout: ACTION_TIMEOUT_MS }); resp.addResult(`Load state "${p.loadState}" reached.`); }
+          else { await page.waitForTimeout(p.time * 1000); resp.addResult(`Waited ${p.time}s.`); }
+        })(), signal, 'browser_wait_for aborted.');
       },
     }),
   ];
