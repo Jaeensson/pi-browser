@@ -1,4 +1,4 @@
-# pi-dev-browser — Design Spec
+# pi-browser — Design Spec
 
 **Date:** 2026-09-06
 **Status:** Approved design (pending implementation plan)
@@ -129,7 +129,7 @@ standalone `browser_close` (tab lifecycle via `browser_tabs`).
   (description + dismissed action) in the next snapshot. Custom handlers via
   `browser_run` (`page.once('dialog', ...)`).
 - **Downloads/profile:** persistent per-project profile keyed by cwd hash under a
-  state root — the OS cache dir (e.g. `~/Library/Caches/pi-dev-browser/profile-<hash>` on macOS); survives
+  state root — the OS cache dir (e.g. `~/Library/Caches/pi-browser/profile-<hash>` on macOS); survives
   sessions; `session_shutdown` closes the browser but not the profile.
 - **Binary bootstrap:** on missing-executable error, spawn
   `npx playwright install chromium` with progress streamed via `onUpdate`,
@@ -171,7 +171,7 @@ Playwright waits; long ops stream `onUpdate` progress (launch, download, waits).
 
 1. Develop/trial: `pi -e ~/pi-browser`
 2. At functional parity: remove `~/.pi/agent/extensions/pi-browser`, install this
-   extension in `~/.pi/agent/extensions/pi-dev-browser/`
+   extension in `~/.pi/agent/extensions/pi-browser/`
 3. Later (optional): publish as npm pi package (structure already compliant)
 
 ## 11. Prior art

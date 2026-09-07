@@ -7,7 +7,7 @@ async function launched() {
   const pi = new FakePi();
   extension(pi as any);
   await pi.execute('browser_launch', {});
-  const session = (globalThis as any).__piDevBrowserSession as import('../src/session').BrowserSession;
+  const session = (globalThis as any).__piBrowserSession as import('../src/session').BrowserSession;
   await installFixture(session.context);
   await pi.execute('browser_navigate', { url: FIXTURE_URL });
   return pi;

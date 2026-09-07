@@ -1,4 +1,4 @@
-# pi-dev-browser Implementation Plan
+# pi-browser Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,13 +8,13 @@
 
 **Tech Stack:** TypeScript (loaded by pi via jiti — no build step), Playwright ^1.61, typebox schemas, vitest.
 
-**Spec:** `docs/superpowers/specs/2026-09-06-pi-dev-browser-design.md`
+**Spec:** `docs/superpowers/specs/2026-09-06-pi-browser-design.md`
 
 ## Global Constraints
 
 - Tool names are exactly the 20 in spec §5, prefix `browser_`.
 - Headless is the default; `mode: "headed"` opts out. Timeouts: action 10 s, navigation 30 s, `browser_run` 30 s.
-- Profile: persistent, keyed by 8-hex hash of `cwd`, under OS cache dir (`~/Library/Caches/pi-dev-browser/` on macOS, `$XDG_CACHE_HOME|~/.cache` on Linux, `%LOCALAPPDATA%` on Windows).
+- Profile: persistent, keyed by 8-hex hash of `cwd`, under OS cache dir (`~/Library/Caches/pi-browser/` on macOS, `$XDG_CACHE_HOME|~/.cache` on Linux, `%LOCALAPPDATA%` on Windows).
 - Every action tool returns a fresh annotated snapshot (spec §4) unless the task says `omitSnapshot`.
 - Screenshots are opt-in and returned as `{ type: 'image', data: <base64>, mimeType }`.
 - Errors are LLM-actionable strings; stale refs embed a fresh snapshot (spec §6/§8).
@@ -67,7 +67,7 @@ tests/
 
 ```json
 {
-  "name": "pi-dev-browser",
+  "name": "pi-browser",
   "version": "0.1.0",
   "description": "Development-loop browser for the pi coding agent: ref-based automation, console/network debugging, responsive screenshots",
   "license": "MIT",
@@ -129,7 +129,7 @@ Expected: PASS (1 test)
 
 ```bash
 git add package.json package-lock.json tsconfig.json src/index.ts tests/scaffold.test.ts
-git commit -m "chore: scaffold pi-dev-browser package"
+git commit -m "chore: scaffold pi-browser package"
 ```
 
 ---
@@ -317,7 +317,7 @@ function stateRoot(): string {
 
 export function profileDirFor(cwd: string, root = stateRoot()): string {
   const hash = createHash('sha256').update(cwd).digest('hex').slice(0, 8);
-  return join(root, 'pi-dev-browser', `profile-${hash}`);
+  return join(root, 'pi-browser', `profile-${hash}`);
 }
 
 export function normalizeLaunchOptions(opts: LaunchOptions, cwd: string): NormalizedLaunch {
@@ -491,7 +491,7 @@ export type PiToolResult = {
 };
 
 export function spillToTempFile(text: string): { path: string; size: number } {
-  const dir = join(tmpdir(), 'pi-dev-browser');
+  const dir = join(tmpdir(), 'pi-browser');
   mkdirSync(dir, { recursive: true });
   const path = join(dir, `spill-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.txt`);
   writeFileSync(path, text);
@@ -1456,7 +1456,7 @@ async function launched() {
   const pi = new FakePi();
   extension(pi as any);
   await pi.execute('browser_launch', {});
-  const session = (globalThis as any).__piDevBrowserSession as import('../src/session').BrowserSession;
+  const session = (globalThis as any).__piBrowserSession as import('../src/session').BrowserSession;
   await installFixture(session.context);
   await pi.execute('browser_navigate', { url: FIXTURE_URL });
   return pi;
@@ -1489,7 +1489,7 @@ describe('observe tools', () => {
 - [ ] **Step 2: Expose the session for tests — one-line addition in `src/index.ts` factory body**
 
 ```typescript
-(globalThis as any).__piDevBrowserSession = session; // test seam; harmless in production
+(globalThis as any).__piBrowserSession = session; // test seam; harmless in production
 ```
 
 - [ ] **Step 3: Run to verify failure**
@@ -1608,7 +1608,7 @@ async function launchedWithFixture() {
   const pi = new FakePi();
   extension(pi as any);
   await pi.execute('browser_launch', {});
-  const session = (globalThis as any).__piDevBrowserSession;
+  const session = (globalThis as any).__piBrowserSession;
   await installFixture(session.context);
   await pi.execute('browser_navigate', { url: FIXTURE_URL });
   return { pi, session };
@@ -1626,10 +1626,10 @@ describe('interaction tools', () => {
     expect(pi.text(await pi.execute('browser_snapshot', {}))).toMatch(/saved!/);
 
     await pi.execute('browser_type', { ref: emailRef, text: 'a@b.c', submit: true });
-    expect(await (globalThis as any).__piDevBrowserSession.page.inputValue('#email')).toBe('a@b.c');
+    expect(await (globalThis as any).__piBrowserSession.page.inputValue('#email')).toBe('a@b.c');
 
     await pi.execute('browser_fill_form', { fields: [{ type: 'combobox', ref: colorRef, value: 'green' }] });
-    expect(await (globalThis as any).__piDevBrowserSession.page.inputValue('select')).toBe('green');
+    expect(await (globalThis as any).__piBrowserSession.page.inputValue('select')).toBe('green');
 
     await pi.execute('browser_hover', { selector: 'h1' });
     await pi.shutdownHandlers[0]?.();
@@ -1809,7 +1809,7 @@ async function launchedWithFixture() {
   const pi = new FakePi();
   extension(pi as any);
   await pi.execute('browser_launch', {});
-  const session = (globalThis as any).__piDevBrowserSession;
+  const session = (globalThis as any).__piBrowserSession;
   await installFixture(session.context);
   await pi.execute('browser_navigate', { url: FIXTURE_URL });
   return { pi, session };
@@ -1989,7 +1989,7 @@ async function launchedWithFixture() {
   const pi = new FakePi();
   extension(pi as any);
   await pi.execute('browser_launch', {});
-  const session = (globalThis as any).__piDevBrowserSession;
+  const session = (globalThis as any).__piBrowserSession;
   await installFixture(session.context);
   await pi.execute('browser_navigate', { url: FIXTURE_URL });
   return { pi, session };
@@ -2092,7 +2092,7 @@ async function launched() {
   const pi = new FakePi();
   extension(pi as any);
   await pi.execute('browser_launch', {});
-  const session = (globalThis as any).__piDevBrowserSession;
+  const session = (globalThis as any).__piBrowserSession;
   await installFixture(session.context);
   await pi.execute('browser_navigate', { url: FIXTURE_URL });
   return { pi, session };
@@ -2364,7 +2364,7 @@ git commit -m "feat: browser_run JS escape hatch with clamp and spill"
 **Interfaces:**
 - Produces: install/trial/acceptance documentation; the finished extension.
 
-- [ ] **Step 1: Write README.md** — cover: what it is (dev-loop browser per spec §1), install (`pi -e ~/pi-browser` to trial; `pi remove` of old pi-browser then copy to `~/.pi/agent/extensions/pi-dev-browser/` at parity), the launch-first flow (only `browser_launch` before connect), tool table (spec §5), ref workflow example prompt ("Open localhost:3000, log in, add an item, verify no console errors"), `browser_run` examples for the cut families (`page.context().cookies()`, `page.setInputFiles`), policies (dialog auto-dismiss, snapshot-per-action, headless default), and troubleshooting (missing Chromium → auto-download note, `npx playwright install chromium` manual fallback).
+- [ ] **Step 1: Write README.md** — cover: what it is (dev-loop browser per spec §1), install (`pi -e ~/pi-browser` to trial; `pi remove` of old pi-browser then copy to `~/.pi/agent/extensions/pi-browser/` at parity), the launch-first flow (only `browser_launch` before connect), tool table (spec §5), ref workflow example prompt ("Open localhost:3000, log in, add an item, verify no console errors"), `browser_run` examples for the cut families (`page.context().cookies()`, `page.setInputFiles`), policies (dialog auto-dismiss, snapshot-per-action, headless default), and troubleshooting (missing Chromium → auto-download note, `npx playwright install chromium` manual fallback).
 
 - [ ] **Step 2: Run the full suite**
 
@@ -2384,7 +2384,7 @@ Expected: agent calls browser_launch → browser_navigate → browser_resize ×2
 
 ```bash
 rm -rf ~/.pi/agent/extensions/pi-browser
-mkdir -p ~/.pi/agent/extensions && cp -R ~/pi-browser ~/.pi/agent/extensions/pi-dev-browser && rm -rf ~/.pi/agent/extensions/pi-dev-browser/{node_modules,docs,tests,.git} && (cd ~/.pi/agent/extensions/pi-dev-browser && npm install --omit=dev)
+mkdir -p ~/.pi/agent/extensions && cp -R ~/pi-browser ~/.pi/agent/extensions/pi-browser && rm -rf ~/.pi/agent/extensions/pi-browser/{node_modules,docs,tests,.git} && (cd ~/.pi/agent/extensions/pi-browser && npm install --omit=dev)
 ```
 
 Then start `pi` and confirm `/browser status` works and the launch tool appears.

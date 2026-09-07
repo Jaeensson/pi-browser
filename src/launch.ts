@@ -29,7 +29,7 @@ function stateRoot(): string {
 
 export function profileDirFor(cwd: string, root = stateRoot()): string {
   const hash = createHash('sha256').update(cwd).digest('hex').slice(0, 8);
-  return join(root, 'pi-dev-browser', `profile-${hash}`);
+  return join(root, 'pi-browser', `profile-${hash}`);
 }
 
 export function normalizeLaunchOptions(opts: LaunchOptions, cwd: string): NormalizedLaunch {

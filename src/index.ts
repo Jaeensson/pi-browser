@@ -13,7 +13,7 @@ import { makeWaitTools } from './tools/wait';
 
 export default function (pi: ExtensionAPI) {
   const session = new BrowserSession();
-  (globalThis as any).__piDevBrowserSession = session; // test seam; harmless in production
+  (globalThis as any).__piBrowserSession = session; // test seam; harmless in production
   let registered = false;
 
   const registerCore = () => {

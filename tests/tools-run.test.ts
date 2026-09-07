@@ -51,7 +51,7 @@ describe('browser_run', () => {
   // old synchronous auto-dismiss, prompt() returned null and a Modal line appeared.
   it('custom dialog handler via browser_run wins over auto-dismiss; takeModal stays null', async () => {
     const pi = await launched();
-    const session = (globalThis as any).__piDevBrowserSession;
+    const session = (globalThis as any).__piBrowserSession;
     await pi.execute('browser_run', { code: `await page.setContent('<button id="b" onclick="window.r = prompt(\\'name?\\')">Ask</button>');` });
     await pi.execute('browser_run', { code: `page.once('dialog', d => d.accept('custom-answer')); return 'handler set';` });
     await session.page.click('#b');

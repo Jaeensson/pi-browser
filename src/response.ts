@@ -12,7 +12,7 @@ export type PiToolResult = {
 };
 
 export function spillToTempFile(text: string): { path: string; size: number } {
-  const dir = join(tmpdir(), 'pi-dev-browser');
+  const dir = join(tmpdir(), 'pi-browser');
   mkdirSync(dir, { recursive: true });
   const path = join(dir, `spill-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.txt`);
   writeFileSync(path, text);

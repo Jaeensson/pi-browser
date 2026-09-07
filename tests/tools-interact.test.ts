@@ -8,7 +8,7 @@ async function launchedWithFixture() {
   const pi = new FakePi();
   extension(pi as any);
   await pi.execute('browser_launch', {});
-  const session = (globalThis as any).__piDevBrowserSession;
+  const session = (globalThis as any).__piBrowserSession;
   await installFixture(session.context);
   await pi.execute('browser_navigate', { url: FIXTURE_URL });
   return { pi, session };
@@ -32,7 +32,7 @@ describe('interaction tools', () => {
     expect(await session.page.inputValue('input[aria-label="Email"]')).toBe('a@b.c');
 
     await pi.execute('browser_fill_form', { fields: [{ type: 'combobox', ref: colorRef, value: 'green' }] });
-    expect(await (globalThis as any).__piDevBrowserSession.page.inputValue('select')).toBe('green');
+    expect(await (globalThis as any).__piBrowserSession.page.inputValue('select')).toBe('green');
 
     await pi.execute('browser_hover', { selector: 'h1' });
     await pi.shutdownHandlers[0]?.();

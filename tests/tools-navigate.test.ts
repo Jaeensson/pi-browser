@@ -12,7 +12,7 @@ async function launchedHermetic() {
   const pi = new FakePi();
   extension(pi as any);
   await pi.execute('browser_launch', {});
-  const session = (globalThis as any).__piDevBrowserSession;
+  const session = (globalThis as any).__piBrowserSession;
   await session.context.route('https://example.com/**', (route: Route) =>
     route.fulfill({ status: 200, contentType: 'text/html', body: EXAMPLE_HTML }));
   return pi;

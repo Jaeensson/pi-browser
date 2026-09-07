@@ -1,5 +1,5 @@
 {
-  "name": "pi-dev-browser",
+  "name": "pi-browser",
   "version": "0.1.0",
   "description": "Development-loop browser for the pi coding agent: ref-based automation, console/network debugging, responsive screenshots",
   "license": "MIT",

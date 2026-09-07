@@ -1,4 +1,4 @@
-# pi-dev-browser
+# pi-browser
 
 A [pi](https://github.com/earendil-works/pi-coding-agent) extension that gives the
 agent a real Chromium browser for the **development loop**: verify UI changes
@@ -119,7 +119,7 @@ written for the model:
   and retries. If the download fails, run it manually from the extension directory.
 - **Browser stuck:** `/browser disconnect`, then ask the agent to launch again.
 - **Persistent login state:** profiles persist per-project (keyed by cwd) under
-  the OS cache dir (e.g. `~/Library/Caches/pi-dev-browser/profile-<hash>` on
+  the OS cache dir (e.g. `~/Library/Caches/pi-browser/profile-<hash>` on
   macOS), so sessions survive restarts.
 
 ## Development
