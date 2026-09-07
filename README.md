@@ -13,19 +13,15 @@ Built for three jobs, in priority order:
 
 ## Install
 
-**Trial** (nothing installed permanently):
-
 ```bash
-pi -e ~/pi-browser
+pi install git:git@github.com:Jaeensson/pi-browser
 ```
 
-**Rollout** (after review): the old `larsderidder/pi-browser` extension is removed
-and this extension is installed at `~/.pi/agent/extensions/pi-dev-browser/`
-(same `browser_*` tool names, so nothing else changes). Until that swap, use
-`pi -e ~/pi-browser` to trial.
-
-Dependencies: `playwright` (installed with `npm install`). No system Chrome
-required — Playwright's own Chromium is launched.
+That's everything — the extension and its `playwright` dependency install together.
+No system Chrome is required: Playwright downloads its own managed Chromium build
+at install time, or automatically on first `browser_launch` if missing. Login
+profiles persist per-project under the OS cache dir. Remove with
+`pi remove git:git@github.com:Jaeensson/pi-browser`.
 
 ## Launch-first flow
 
